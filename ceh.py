@@ -7,22 +7,9 @@ import os
 import subprocess
 from datetime import datetime
 
-# ---------------- LOGO ----------------
-def logo():
-    print("""
- ██╗███╗   ██╗███████╗ ██████╗ ██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
- ██║████╗  ██║██╔════╝██╔═══██╗██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
- ██║██╔██╗ ██║█████╗  ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
- ██║██║╚██╗██║██╔══╝  ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
- ██║██║ ╚████║██║     ╚██████╔╝██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
- ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-        InfoHunter – Golden Reconnaissance Tool
-                    Author: Rohit Sabale
-""")
-
 # ---------------- SAVE OUTPUT ----------------
 def save(data):
-    with open("infohunter_output.txt", "a", encoding="utf-8") as f:
+    with open("autoreconx_output.txt", "a", encoding="utf-8") as f:
         f.write(data + "\n")
 
 # ---------------- BANNER GRABBING ----------------
@@ -49,6 +36,7 @@ def dns_enum(domain):
                 ["nslookup", "-type=" + r, domain],
                 stderr=subprocess.DEVNULL
             ).decode()
+            print(f"\n--- {r} Records ---")
             print(result)
             save(result)
         except:
@@ -85,7 +73,7 @@ def dir_enum(domain):
         except:
             pass
 
-# ---------------- HTTP HEADER INFO ----------------
+# ---------------- HTTP HEADER ATTACK ----------------
 def http_header_attack(domain):
     print("\n[+] HTTP Header Information")
     save("\n[HTTP HEADER INFORMATION]")
@@ -121,8 +109,10 @@ logo()
 target = input("Enter Target IP / Domain: ").strip()
 time = datetime.now()
 
+print("\n[+] Target:", target)
 save(f"\nTarget: {target}\nScan Time: {time}")
 
+# DNS → IP
 ip = socket.gethostbyname(target)
 print("[+] IP Address:", ip)
 save(f"IP Address: {ip}")
@@ -147,8 +137,8 @@ for k in ["country","regionName","city","isp"]:
 print("""
 Scan Profiles:
 1) Quick Scan
-2) Intense Scan
-3) Full TCP Scan
+2) Intense Scan (Root required)
+3) Full TCP Scan (Slow)
 """)
 
 choice = input("Choose Scan: ")
@@ -161,29 +151,76 @@ elif choice == "2":
 elif choice == "3":
     scanner.scan(ip, arguments="-sS -p- -T4")
 else:
+    print("Invalid choice")
+    exit()
+
+if ip not in scanner.all_hosts():
+    print("Scan failed or host unreachable")
     exit()
 
 print("\n[+] Open Ports & Banners")
 for proto in scanner[ip].all_protocols():
     for port in scanner[ip][proto]:
+        state = scanner[ip][proto][port]["state"]
         banner = banner_grab(ip, port)
-        line = f"Port {port}/{proto} | Banner: {banner}"
+        line = f"Port {port}/{proto} - {state} | Banner: {banner}"
         print(line)
         save(line)
+
+# ---------------- ATTACK MENU ----------------
+while True:
+    print("""
+Recon Attack Modules:
+1) DNS Enumeration
+2) Subdomain Enumeration
+3) Directory Enumeration
+4) HTTP Header Attack
+5) Service Enumeration
+6) Exit
+""")
+
+    ch = input("Select option: ")
+
+    if ch == "1":
+        dns_enum(target)
+    elif ch == "2":
+        subdomain_enum(target)
+    elif ch == "3":
+        dir_enum(target)
+    elif ch == "4":
+        http_header_attack(target)
+    elif ch == "5":
+        service_enum(ip)
+    else:
+        break
 
 # ---------------- HTML REPORT ----------------
 html = f"""
 <!DOCTYPE html>
 <html>
 <head>
-<title>InfoHunter Report</title>
+<title>AutoReconX Report</title>
+<style>
+body {{ background:#0f172a; color:#e5e7eb; font-family:Arial; }}
+h1 {{ color:#22c55e; }}
+pre {{ background:#020617; padding:15px; border-radius:8px; }}
+</style>
 </head>
 <body>
-<h1>InfoHunter Scan Report</h1>
-<p>Target: {target}</p>
-<p>IP: {ip}</p>
-<p>Date: {time}</p>
-<pre>{open("infohunter_output.txt").read()}</pre>
+<h1>AutoReconX Scan Report</h1>
+<p><b>Target:</b> {target}</p>
+<p><b>IP:</b> {ip}</p>
+<p><b>Date:</b> {time}</p>
+<pre>
+"""
+
+if os.path.exists("autoreconx_output.txt"):
+    html += open("autoreconx_output.txt", encoding="utf-8").read()
+else:
+    html += "No output available"
+
+html += """
+</pre>
 </body>
 </html>
 """
@@ -191,12 +228,11 @@ html = f"""
 with open("report.html","w",encoding="utf-8") as f:
     f.write(html)
 
-print("[+] HTML report generated")
+print("\n[+] HTML report generated: report.html")
 
+# PDF
 try:
     subprocess.call(["wkhtmltopdf","report.html","report.pdf"])
-    print("[+] PDF report generated")
+    print("[+] PDF report generated: report.pdf")
 except:
     print("PDF generation failed")
-
-  
