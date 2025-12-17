@@ -106,3 +106,97 @@ def service_enum(ip):
     for port in ports:
         try:
             s = socket.socket()
+            s.settimeout(2)
+            s.connect((ip, port))
+            data = f"[OPEN] Port {port}"
+            print(data)
+            save(data)
+            s.close()
+        except:
+            pass
+
+# ---------------- MAIN ----------------
+logo()
+
+target = input("Enter Target IP / Domain: ").strip()
+time = datetime.now()
+
+save(f"\nTarget: {target}\nScan Time: {time}")
+
+ip = socket.gethostbyname(target)
+print("[+] IP Address:", ip)
+save(f"IP Address: {ip}")
+
+# WHOIS
+print("\n[+] WHOIS Information")
+try:
+    w = whois.whois(target)
+    print("Registrar:", w.registrar)
+    save(f"Registrar: {w.registrar}")
+except:
+    print("WHOIS failed")
+
+# GEO
+print("\n[+] Geo Location")
+geo = requests.get(f"http://ip-api.com/json/{ip}").json()
+for k in ["country","regionName","city","isp"]:
+    print(f"{k}: {geo.get(k)}")
+    save(f"{k}: {geo.get(k)}")
+
+# ---------------- NMAP SCANS ----------------
+print("""
+Scan Profiles:
+1) Quick Scan
+2) Intense Scan
+3) Full TCP Scan
+""")
+
+choice = input("Choose Scan: ")
+scanner = nmap.PortScanner()
+
+if choice == "1":
+    scanner.scan(ip, arguments="-T4 -F")
+elif choice == "2":
+    scanner.scan(ip, arguments="-sS -sV -O -T4")
+elif choice == "3":
+    scanner.scan(ip, arguments="-sS -p- -T4")
+else:
+    exit()
+
+print("\n[+] Open Ports & Banners")
+for proto in scanner[ip].all_protocols():
+    for port in scanner[ip][proto]:
+        banner = banner_grab(ip, port)
+        line = f"Port {port}/{proto} | Banner: {banner}"
+        print(line)
+        save(line)
+
+# ---------------- HTML REPORT ----------------
+html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<title>InfoHunter Report</title>
+</head>
+<body>
+<h1>InfoHunter Scan Report</h1>
+<p>Target: {target}</p>
+<p>IP: {ip}</p>
+<p>Date: {time}</p>
+<pre>{open("infohunter_output.txt").read()}</pre>
+</body>
+</html>
+"""
+
+with open("report.html","w",encoding="utf-8") as f:
+    f.write(html)
+
+print("[+] HTML report generated")
+
+try:
+    subprocess.call(["wkhtmltopdf","report.html","report.pdf"])
+    print("[+] PDF report generated")
+except:
+    print("PDF generation failed")
+
+  
