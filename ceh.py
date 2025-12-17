@@ -3,6 +3,7 @@ import nmap
 import whois
 import socket
 import requests
+import os
 import subprocess
 from datetime import datetime
 
@@ -16,42 +17,43 @@ def logo():
  ██║██║ ╚████║██║     ╚██████╔╝██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
  ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
         InfoHunter – Golden Reconnaissance Tool
-                Author: Rohit Sabale
+                    Author: Rohit Sabale
 """)
 
 # ---------------- SAVE OUTPUT ----------------
 def save(data):
-    with open("infohunter_output.txt", "a", encoding="utf-8") as f:
+    with open("autoreconx_output.txt", "a", encoding="utf-8") as f:
         f.write(data + "\n")
 
-# ---------------- OSINT INFO ----------------
-def osint_info(domain):
-    print("\n[+] OSINT Information")
-    save("\n[OSINT INFORMATION]")
-    for path in ["robots.txt", "sitemap.xml"]:
-        try:
-            url = f"http://{domain}/{path}"
-            r = requests.get(url, timeout=5)
-            if r.status_code == 200:
-                save(f"[FOUND] {url}")
-                print(f"[FOUND] {url}")
-        except:
-            pass
+# ---------------- BANNER GRABBING ----------------
+def banner_grab(ip, port):
+    try:
+        s = socket.socket()
+        s.settimeout(2)
+        s.connect((ip, port))
+        s.send(b"HEAD / HTTP/1.0\r\n\r\n")
+        banner = s.recv(1024).decode(errors="ignore")
+        s.close()
+        return banner.strip()
+    except:
+        return "No Banner"
 
 # ---------------- DNS ENUMERATION ----------------
 def dns_enum(domain):
     print("\n[+] DNS Enumeration")
     save("\n[DNS ENUMERATION]")
-    for r in ["A", "MX", "NS", "TXT"]:
+    records = ["A", "MX", "NS", "TXT"]
+    for r in records:
         try:
             result = subprocess.check_output(
                 ["nslookup", "-type=" + r, domain],
                 stderr=subprocess.DEVNULL
             ).decode()
+            print(f"\n--- {r} Records ---")
             print(result)
             save(result)
         except:
-            pass
+            print(f"[-] {r} lookup failed")
 
 # ---------------- SUBDOMAIN ENUMERATION ----------------
 def subdomain_enum(domain):
@@ -59,8 +61,8 @@ def subdomain_enum(domain):
     save("\n[SUBDOMAIN ENUMERATION]")
     subs = ["www","mail","ftp","dev","test","api","admin","portal","blog"]
     for sub in subs:
+        host = f"{sub}.{domain}"
         try:
-            host = f"{sub}.{domain}"
             ip = socket.gethostbyname(host)
             data = f"[FOUND] {host} -> {ip}"
             print(data)
@@ -72,10 +74,10 @@ def subdomain_enum(domain):
 def dir_enum(domain):
     print("\n[+] Directory Enumeration")
     save("\n[DIRECTORY ENUMERATION]")
-    paths = ["admin","login","dashboard","backup","uploads","config"]
+    paths = ["admin","login","test","backup","uploads","config"]
     for p in paths:
+        url = f"http://{domain}/{p}"
         try:
-            url = f"http://{domain}/{p}"
             r = requests.get(url, timeout=3)
             if r.status_code in [200,301,403]:
                 data = f"[FOUND] {url} ({r.status_code})"
@@ -83,7 +85,6 @@ def dir_enum(domain):
                 save(data)
         except:
             pass
-
 # ---------------- TECHNOLOGY DETECTION ----------------
 def tech_detection(domain):
     print("\n[+] Technology Detection")
@@ -121,6 +122,18 @@ def admin_panel_check(domain):
                 save(f"[FOUND] {url}")
         except:
             pass
+# ---------------- HTTP HEADER ATTACK ----------------
+def http_header_attack(domain):
+    print("\n[+] HTTP Header Information")
+    save("\n[HTTP HEADER INFORMATION]")
+    try:
+        r = requests.get("http://" + domain, timeout=5)
+        for h in r.headers:
+            line = f"{h}: {r.headers[h]}"
+            print(line)
+            save(line)
+    except:
+        print("[-] HTTP request failed")
 
 # ---------------- SERVICE ENUMERATION ----------------
 def service_enum(ip):
@@ -139,52 +152,113 @@ def service_enum(ip):
         except:
             pass
 
-# ================= MAIN =================
+# ---------------- MAIN ----------------
 logo()
-target = input("Enter Target IP / Domain: ").strip()
-ip = socket.gethostbyname(target)
 
-# ================= ATTACK MENU =================
+target = input("Enter Target IP / Domain: ").strip()
+time = datetime.now()
+
+print("\n[+] Target:", target)
+save(f"\nTarget: {target}\nScan Time: {time}")
+
+# DNS → IP
+ip = socket.gethostbyname(target)
+print("[+] IP Address:", ip)
+save(f"IP Address: {ip}")
+
+# WHOIS
+print("\n[+] WHOIS Information")
+try:
+    w = whois.whois(target)
+    print("Registrar:", w.registrar)
+    save(f"Registrar: {w.registrar}")
+except:
+    print("WHOIS failed")
+
+# GEO
+print("\n[+] Geo Location")
+geo = requests.get(f"http://ip-api.com/json/{ip}").json()
+for k in ["country","regionName","city","isp"]:
+    print(f"{k}: {geo.get(k)}")
+    save(f"{k}: {geo.get(k)}")
+
+# ---------------- ATTACK MENU ----------------
 while True:
     print("""
-================ InfoHunter Attack Menu ================
-
-1) OSINT Information
-2) DNS Enumeration
-3) Subdomain Enumeration
-4) Directory Enumeration
-5) Technology Detection
-6) Email Enumeration
-7) Admin Panel Detection
+Recon Attack Modules:
+1) DNS Enumeration
+2) Subdomain Enumeration
+3) Directory Enumeration
+4) Technology Detection
+5) Email Enumeration
+6) Admin Panel
+7) HTTP Header Attack
 8) Service Enumeration
 9) Exit
-
-========================================================
 """)
 
     ch = input("Select option: ")
 
     if ch == "1":
-        osint_info(target)
-    elif ch == "2":
         dns_enum(target)
-    elif ch == "3":
+    elif ch == "2":
         subdomain_enum(target)
-    elif ch == "4":
+    elif ch == "3":
         dir_enum(target)
+    elif ch == "4":
+         tech_detection(target)
     elif ch == "5":
-        tech_detection(target)
-    elif ch == "6":
         email_enum(target)
-    elif ch == "7":
+    elif ch == "6":
         admin_panel_check(target)
+    elif ch == "7":
+        http_header_attack(target)
     elif ch == "8":
-        service_enum(ip)
+        service_enum(target)
     elif ch == "9":
-        print("\n[+] Exiting InfoHunter")
-        break
+          print("\n[+] Exiting InfoHunter")
     else:
-        print("[-] Invalid option")
+        break
 
+# ---------------- HTML REPORT ----------------
+html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<title>AutoReconX Report</title>
+<style>
+body {{ background:#0f172a; color:#e5e7eb; font-family:Arial; }}
+h1 {{ color:#22c55e; }}
+pre {{ background:#020617; padding:15px; border-radius:8px; }}
+</style>
+</head>
+<body>
+<h1>AutoReconX Scan Report</h1>
+<p><b>Target:</b> {target}</p>
+<p><b>IP:</b> {ip}</p>
+<p><b>Date:</b> {time}</p>
+<pre>
+"""
 
+if os.path.exists("autoreconx_output.txt"):
+    html += open("autoreconx_output.txt", encoding="utf-8").read()
+else:
+    html += "No output available"
 
+html += """
+</pre>
+</body>
+</html>
+"""
+
+with open("report.html","w",encoding="utf-8") as f:
+    f.write(html)
+
+print("\n[+] HTML report generated: report.html")
+
+# PDF
+try:
+    subprocess.call(["wkhtmltopdf","report.html","report.pdf"])
+    print("[+] PDF report generated: report.pdf")
+except:
+    print("PDF generation failed")
