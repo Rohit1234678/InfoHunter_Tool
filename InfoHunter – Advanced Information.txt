@@ -1,0 +1,60 @@
+InfoHunter – Advanced Information Gathering Tool
+📌 Introduction
+
+InfoHunter is an advanced, Python-based information gathering and reconnaissance tool inspired by Zenmap and Kali Linux utilities. The tool automates the reconnaissance phase of ethical hacking by accepting a single input (IP address or domain name) and performing multiple scans and enumeration techniques through a menu-driven interface.
+
+🎯 Objective
+
+The main objective of InfoHunter is to simplify and automate reconnaissance tasks such as port scanning, service identification, and domain enumeration. It is designed for CEH practice, cybersecurity training, and academic projects.
+
+🛠 Tools & Technologies Used
+
+Python 3
+
+Nmap
+
+WHOIS
+
+Requests Library
+
+Socket Programming
+
+Kali Linux
+
+🚀 Features
+
+Zenmap-style scan profiles
+
+Nmap port and service scanning
+
+Banner grabbing
+
+WHOIS and DNS enumeration
+
+Geo-location tracking
+
+Subdomain and directory enumeration
+
+HTML and PDF report generation
+
+Kali Linux compatibility
+
+▶️ Working Methodology
+
+The user enters a target IP address or domain name.
+
+The tool resolves the target and gathers basic information.
+
+Nmap scans are performed based on user selection.
+
+Enumeration modules collect additional information.
+
+All outputs are saved and compiled into HTML and PDF reports.
+
+⚠️ Ethical Consideration
+
+InfoHunter is developed strictly for educational purposes and authorized security testing. Unauthorized scanning of systems without permission is illegal and not supported.
+
+✅ Conclusion
+
+InfoHunter successfully automates the reconnaissance process using Python and Nmap. It provides a practical learning platform for students and cybersecurity professionals, making it suitable for CEH training and academic submissions.
