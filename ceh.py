@@ -229,7 +229,6 @@ subprocess.call(["wkhtmltopdf","report.html","report.pdf"])
 
 print("\n[+] Reports generated: report.html & report.pdf")
 
-except:
-    print("PDF generation failed")
+
 
 
