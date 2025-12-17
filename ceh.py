@@ -182,6 +182,47 @@ for k in ["country","regionName","city","isp"]:
     print(f"{k}: {geo.get(k)}")
     save(f"{k}: {geo.get(k)}")
 
+# ---------------- NMAP SCANS ----------------
+print("""
+Scan Profiles:
+1) Quick Scan (Fast TCP)
+2) Intense Scan (Fast + Service + OS) [Root]
+3) Full TCP Scan (All Ports – Optimized)
+4) UDP Scan (Top UDP Ports)
+""")
+
+choice = input("Choose Scan: ").strip()
+scanner = nmap.PortScanner()
+
+try:
+    if choice == "1":
+        # FAST common ports + service detection
+        scanner.scan(ip, arguments="-sS -sV --top-ports 1000 -T4")
+
+    elif choice == "2":
+        # Faster intense scan (optimized)
+        scanner.scan(ip, arguments="-sS -sV -O --top-ports 2000 -T4")
+
+    elif choice == "3":
+        # Full TCP scan but optimized (faster than 0-65535)
+        scanner.scan(ip, arguments="-sS -sV -p- --min-rate 500 -T4")
+
+    elif choice == "4":
+        # UDP scan (TOP UDP ports – realistic & fast)
+        scanner.scan(ip, arguments="-sU --top-ports 100 -T4")
+
+    else:
+        print("Invalid choice")
+        exit()
+
+except Exception as e:
+    print("[-] Nmap scan failed:", e)
+    exit()
+
+if ip not in scanner.all_hosts():
+    print("Scan failed or host unreachable")
+    exit()
+
 # ---------------- ATTACK MENU ----------------
 while True:
     print("""
@@ -262,3 +303,4 @@ try:
     print("[+] PDF report generated: report.pdf")
 except:
     print("PDF generation failed")
+
