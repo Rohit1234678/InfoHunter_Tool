@@ -1,249 +1,204 @@
 #!/usr/bin/env python3
-import nmap
-import whois
-import socket
-import requests
-import subprocess
-import os
-from datetime import datetime
+# ==========================================================
+# InfoHunter v16 – Optimized Full Recon Framework
+# Author : Rohit Madhav Sabale
+# ==========================================================
 
-OUTPUT_FILE = "infohunter_output.txt"
+import os, socket, subprocess, re, requests, ssl
+import nmap, whois
+from datetime import datetime
+from tqdm import tqdm
+
+OUTPUT_TXT = "infohunter_output.txt"
+HTML_REPORT = "infohunter_report.html"
+
+CVE_LIST = set()
+EXPLOITS = {}
 
 # ---------------- LOGO ----------------
 def logo():
-    print("""
- ██╗███╗   ██╗███████╗ ██████╗ ██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
- ██║████╗  ██║██╔════╝██╔═══██╗██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
- ██║██╔██╗ ██║█████╗  ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
- ██║██║╚██╗██║██╔══╝  ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
- ██║██║ ╚████║██║     ╚██████╔╝██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
- ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-        InfoHunter – Golden Reconnaissance Tool
-                    Author: Rohit Madhav Sabale
+    print(r"""
+ ██████╗ ██╗███╗   ██╗███████╗ ██████╗ ██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
+ ██╔══██╗██║████╗  ██║██╔════╝██╔═══██╗██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+ ██████╔╝██║██╔██╗ ██║█████╗  ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+ ██╔══██╗██║██║╚██╗██║██╔══╝  ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+ ██║  ██║██║██║ ╚████║██║     ╚██████╔╝██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+ ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+            InfoHunter v16 – FAST ⚡ | ULTRA-DEEP ☠️ Recon
 """)
 
-# ---------------- SAVE OUTPUT ----------------
-def save(data):
-    with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
-        f.write(data + "\n")
+# ---------------- SAVE ----------------
+def save(txt):
+    with open(OUTPUT_TXT, "a", encoding="utf-8") as f:
+        f.write(txt + "\n")
 
 # ---------------- BASIC INFO ----------------
 def basic_info(target):
-    print("\n[+] Resolving Target...")
+    save("\n=== BASIC INFORMATION ===")
     ip = socket.gethostbyname(target)
-    print("[+] IP Address:", ip)
-    save(f"Target: {target}")
-    save(f"IP Address: {ip}")
+    save(f"Target : {target}")
+    save(f"IP      : {ip}")
 
-    print("\n[+] WHOIS Information")
     try:
         w = whois.whois(target)
-        print("Registrar:", w.registrar)
-        save(f"Registrar: {w.registrar}")
+        if w:
+            for k,v in w.items():
+                if v:
+                    save(f"{k}: {v}")
     except:
-        print("WHOIS lookup failed")
+        save("WHOIS lookup failed")
 
-    print("\n[+] Geo Location")
-    geo = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
-    for k in ["country", "regionName", "city", "isp"]:
-        print(f"{k}: {geo.get(k)}")
-        save(f"{k}: {geo.get(k)}")
+    try:
+        geo = requests.get(f"https://ipapi.co/{ip}/json/", timeout=6).json()
+        for k in ["city","region","country_name","org","asn"]:
+            save(f"{k}: {geo.get(k)}")
+    except:
+        save("Geolocation failed")
 
     return ip
 
-# ---------------- NMAP SCAN ----------------
-def nmap_scan(ip):
-    print("""
-Scan Profiles:
-1) Quick Scan (Fast)
-2) Intense Scan (OS + Services)
-3) Full TCP Scan
-4) UDP Scan
-""")
-
-    choice = input("Choose Scan: ").strip()
-    scanner = nmap.PortScanner()
-
-    if choice == "1":
-        args = "-sS -sV --top-ports 1000 -T4"
-    elif choice == "2":
-        args = "-sS -sV -O --top-ports 2000 -T4"
-    elif choice == "3":
-        args = "-sS -sV -p- --min-rate 500 -T4"
-    elif choice == "4":
-        args = "-sU --top-ports 100 -T4"
-    else:
-        print("Invalid choice")
-        return
-
-    print("\n[+] Running Nmap Scan...")
-    scanner.scan(ip, arguments=args)
-
-    if ip not in scanner.all_hosts():
-        print("Scan failed")
-        return
-
-    print("\n[+] Open Ports & Services")
-    save("\n[OPEN PORTS & SERVICES]")
-
-    for proto in scanner[ip].all_protocols():
-        for port in sorted(scanner[ip][proto]):
-            info = scanner[ip][proto][port]
-            line = f"{port}/{proto} | {info.get('state')} | {info.get('name')} {info.get('product','')} {info.get('version','')}"
-            print(line)
-            save(line)
-
-# ---------------- ENUMERATION MODULES ----------------
+# ---------------- DNS ENUM ----------------
 def dns_enum(domain):
-    print("\n[+] DNS Enumeration")
-    save("\n[DNS ENUMERATION]")
-    for r in ["A", "MX", "NS", "TXT"]:
+    save("\n=== DNS ENUMERATION ===")
+    for r in ["A","NS","MX","TXT"]:
         try:
-            result = subprocess.check_output(["nslookup", "-type="+r, domain]).decode()
-            print(result)
-            save(result)
+            out = subprocess.check_output(
+                ["nslookup", "-type="+r, domain],
+                stderr=subprocess.DEVNULL
+            ).decode()
+            save(out)
         except:
             pass
 
-def subdomain_enum(domain):
-    print("\n[+] Subdomain Enumeration")
-    save("\n[SUBDOMAIN ENUMERATION]")
-    for sub in ["www","mail","ftp","dev","test","api","admin","portal"]:
+# ---------------- WEB OSINT ----------------
+def web_osint(target):
+    save("\n=== WEB OSINT ===")
+    urls = [
+        f"http://{target}",
+        f"http://{target}/robots.txt",
+        f"http://{target}/sitemap.xml"
+    ]
+    for url in urls:
         try:
-            ip = socket.gethostbyname(f"{sub}.{domain}")
-            line = f"{sub}.{domain} -> {ip}"
-            print(line)
-            save(line)
+            r = requests.get(url, timeout=4)
+            save(f"[{r.status_code}] {url}")
+            if "Server" in r.headers:
+                save(f"Server: {r.headers['Server']}")
         except:
             pass
 
-def dir_enum(domain):
-    print("\n[+] Directory Enumeration")
-    save("\n[DIRECTORY ENUMERATION]")
-    for p in ["admin","login","dashboard","backup","uploads"]:
-        try:
-            url = f"http://{domain}/{p}"
-            r = requests.get(url, timeout=3)
-            if r.status_code in [200,301,403]:
-                print("[FOUND]", url)
-                save(f"[FOUND] {url}")
-        except:
-            pass
+# ---------------- NMAP SCAN ----------------
+def nmap_scan(ip, deep):
+    save("\n=== NMAP FULL PORT SCAN ===")
+    nm = nmap.PortScanner()
 
-def tech_detection(domain):
-    print("\n[+] Technology Detection")
-    save("\n[TECHNOLOGY DETECTION]")
-    try:
-        r = requests.get("http://" + domain, timeout=5)
-        save(f"Server: {r.headers.get('Server')}")
-        if "wp-content" in r.text:
-            save("CMS Detected: WordPress")
-            print("[+] CMS Detected: WordPress")
-    except:
-        pass
+    if not deep:
+        args = "-p- -T4 --min-rate 1000 -sS -sV"
+        save("Mode: FAST (All ports, no scripts)")
+    else:
+        args = "-p- -T4 --min-rate 800 -sS -sV -A --script vuln"
+        save("Mode: ULTRA-DEEP (All ports + vuln scripts)")
 
-def email_enum(domain):
-    print("\n[+] Email Enumeration")
-    save("\n[EMAIL ENUMERATION]")
-    for e in ["admin","support","info","contact"]:
-        line = f"{e}@{domain}"
-        print(line)
-        save(line)
+    nm.scan(hosts=ip, arguments=args)
 
-def admin_panel(domain):
-    print("\n[+] Admin Panel Detection")
-    save("\n[ADMIN PANEL DETECTION]")
-    for p in ["admin","admin/login","cpanel","dashboard"]:
-        try:
-            url = f"http://{domain}/{p}"
-            r = requests.get(url, timeout=3)
-            if r.status_code in [200,301,403]:
-                print("[FOUND]", url)
-                save(f"[FOUND] {url}")
-        except:
-            pass
+    if ip not in nm.all_hosts():
+        save("No response from target")
+        return
 
-# ---------------- ENUM MENU ----------------
-def enumeration_menu(target):
-    while True:
-        print("""
-Enumeration Modules:
-1) DNS Enumeration
-2) Subdomain Enumeration
-3) Directory Enumeration
-4) Technology Detection
-5) Email Enumeration
-6) Admin Panel Detection
-7) Exit
-""")
-        ch = input("Select option: ")
+    for proto in nm[ip].all_protocols():
+        save(f"\nProtocol: {proto}")
+        for port in sorted(nm[ip][proto].keys()):
+            info = nm[ip][proto][port]
+            save(f"[OPEN] {port}/{proto} | {info['state']} | {info.get('name','')}")
 
-        if ch == "1": dns_enum(target)
-        elif ch == "2": subdomain_enum(target)
-        elif ch == "3": dir_enum(target)
-        elif ch == "4": tech_detection(target)
-        elif ch == "5": email_enum(target)
-        elif ch == "6": admin_panel(target)
-        else: break
+            scripts = info.get("script")
+            if scripts:
+                for s, out in scripts.items():
+                    save(f"[SCRIPT:{s}] {out}")
+                    for cve in re.findall(r"CVE-\d{4}-\d{4,7}", out):
+                        CVE_LIST.add(cve)
+
+# ---------------- EXPLOITDB ----------------
+def exploitdb_lookup():
+    save("\n=== EXPLOITDB MAPPING ===")
+    for cve in CVE_LIST:
+        link = f"https://www.exploit-db.com/search?cve={cve}"
+        EXPLOITS[cve] = link
+        save(f"{cve} -> {link}")
 
 # ---------------- HTML REPORT ----------------
-def generate_html_report(target, ip):
+def html_report(target, ip, mode):
+    risk = min(100, len(CVE_LIST) * 10)
+
     html = f"""
-<!DOCTYPE html>
 <html>
 <head>
-<title>InfoHunter Report</title>
+<title>InfoHunter v16 SOC Report</title>
 <style>
-body {{
-    background: #000000;
-    color: #facc15;
-    font-family: Arial;
-}}
-h1 {{
-    color: #facc15;
-}}
-pre {{
-    background: #111827;
-    padding: 15px;
-    border-radius: 8px;
-}}
+body {{background:#0b0f19;color:#e5e7eb;font-family:Segoe UI}}
+h1,h2 {{color:#facc15}}
+table {{width:100%;border-collapse:collapse}}
+th,td {{border:1px solid #334155;padding:8px}}
+th {{background:#020617}}
 </style>
 </head>
 <body>
 
-<h1>InfoHunter – Scan Report</h1>
-<p><b>Target:</b> {target}</p>
-<p><b>IP Address:</b> {ip}</p>
+<h1>🛡️ InfoHunter v16 – SOC Report</h1>
 
-<pre>
+<table>
+<tr><th>Target</th><td>{target}</td></tr>
+<tr><th>IP</th><td>{ip}</td></tr>
+<tr><th>Mode</th><td>{mode}</td></tr>
+<tr><th>Date</th><td>{datetime.now()}</td></tr>
+<tr><th>Total CVEs</th><td>{len(CVE_LIST)}</td></tr>
+<tr><th>Risk Score</th><td>{risk}%</td></tr>
+</table>
+
+<h2>🚨 CVE Intelligence</h2>
+<table>
+<tr><th>CVE</th><th>ExploitDB</th></tr>
 """
+    for cve, link in EXPLOITS.items():
+        html += f"<tr><td>{cve}</td><td><a href='{link}'>{link}</a></td></tr>"
 
-    if os.path.exists(OUTPUT_FILE):
-        with open(OUTPUT_FILE, encoding="utf-8") as f:
-            html += f.read()
-    else:
-        html += "No scan data available."
+    html += f"""
+</table>
 
-    html += """
-</pre>
+<h2>📄 Full Scan Output</h2>
+<pre>{open(OUTPUT_TXT).read()}</pre>
+
 </body>
 </html>
 """
-
-    with open("infohunter_report.html", "w", encoding="utf-8") as f:
+    with open(HTML_REPORT, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print("\n[+] HTML report generated: infohunter_report.html")
-
 # ---------------- MAIN ----------------
-logo()
-open(OUTPUT_FILE, "w").close()
-save(f"Scan Time: {datetime.now()}")
+def main():
+    os.system("clear")
+    logo()
 
-target = input("Enter Target IP / Domain: ").strip()
-ip = basic_info(target)
-nmap_scan(ip)
-enumeration_menu(target)
-generate_html_report(target, ip)
+    if os.path.exists(OUTPUT_TXT):
+        os.remove(OUTPUT_TXT)
 
-print("\n[+] InfoHunter scan completed successfully.")
+    target = input("Enter Domain or IP: ").strip()
+
+    print("\n1) FAST Scan\n2) ULTRA-DEEP Scan")
+    deep = input("Choose mode: ") == "2"
+    mode_name = "ULTRA-DEEP" if deep else "FAST"
+
+    with tqdm(total=6, desc="InfoHunter Progress") as bar:
+        ip = basic_info(target); bar.update(1)
+        dns_enum(target); bar.update(1)
+        web_osint(target); bar.update(1)
+        nmap_scan(ip, deep); bar.update(1)
+        exploitdb_lookup(); bar.update(1)
+
+    html_report(target, ip, mode_name)
+
+    print("\n[✔] Scan Completed")
+    print("[✔] Report:", HTML_REPORT)
+
+if __name__ == "__main__":
+    main()
